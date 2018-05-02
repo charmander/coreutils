@@ -3596,6 +3596,18 @@ typedef int (*qsortFunc)(V a, V b);
     }									\
   while (0)
 
+#define DOTFIRST_CHECK(a, b)						\
+  do									\
+    {									\
+      bool a_is_dot = ((struct fileinfo const *) a)->name[0] == '.';	\
+      bool b_is_dot = ((struct fileinfo const *) b)->name[0] == '.';	\
+      if (a_is_dot && !b_is_dot)					\
+        return -1;							\
+      if (!a_is_dot && b_is_dot)					\
+        return 1;							\
+    }									\
+  while (0)
+
 /* Define the 8 different sort function variants required for each sortkey.
    KEY_NAME is a token describing the sort key, e.g., ctime, atime, size.
    KEY_CMP_FUNC is a function to compare records based on that key, e.g.,
@@ -3604,27 +3616,27 @@ typedef int (*qsortFunc)(V a, V b);
 #define DEFINE_SORT_FUNCTIONS(key_name, key_cmp_func)			\
   /* direct, non-dirfirst versions */					\
   static int xstrcoll_##key_name (V a, V b)				\
-  { return key_cmp_func (a, b, xstrcoll); }				\
+  { DOTFIRST_CHECK (a, b); return key_cmp_func (a, b, xstrcoll); }	\
   static int _GL_ATTRIBUTE_PURE strcmp_##key_name (V a, V b)		\
-  { return key_cmp_func (a, b, strcmp); }				\
+  { DOTFIRST_CHECK (a, b); return key_cmp_func (a, b, strcmp); }	\
                                                                         \
   /* reverse, non-dirfirst versions */					\
   static int rev_xstrcoll_##key_name (V a, V b)				\
-  { return key_cmp_func (b, a, xstrcoll); }				\
+  { DOTFIRST_CHECK (a, b); return key_cmp_func (b, a, xstrcoll); }	\
   static int _GL_ATTRIBUTE_PURE rev_strcmp_##key_name (V a, V b)	\
-  { return key_cmp_func (b, a, strcmp); }				\
+  { DOTFIRST_CHECK (a, b); return key_cmp_func (b, a, strcmp); }	\
                                                                         \
   /* direct, dirfirst versions */					\
   static int xstrcoll_df_##key_name (V a, V b)				\
-  { DIRFIRST_CHECK (a, b); return key_cmp_func (a, b, xstrcoll); }	\
+  { DIRFIRST_CHECK (a, b); DOTFIRST_CHECK (a, b); return key_cmp_func (a, b, xstrcoll); } \
   static int _GL_ATTRIBUTE_PURE strcmp_df_##key_name (V a, V b)		\
-  { DIRFIRST_CHECK (a, b); return key_cmp_func (a, b, strcmp); }	\
+  { DIRFIRST_CHECK (a, b); DOTFIRST_CHECK (a, b); return key_cmp_func (a, b, strcmp); } \
                                                                         \
   /* reverse, dirfirst versions */					\
   static int rev_xstrcoll_df_##key_name (V a, V b)			\
-  { DIRFIRST_CHECK (a, b); return key_cmp_func (b, a, xstrcoll); }	\
+  { DIRFIRST_CHECK (a, b); DOTFIRST_CHECK (a, b); return key_cmp_func (b, a, xstrcoll); } \
   static int _GL_ATTRIBUTE_PURE rev_strcmp_df_##key_name (V a, V b)	\
-  { DIRFIRST_CHECK (a, b); return key_cmp_func (b, a, strcmp); }
+  { DIRFIRST_CHECK (a, b); DOTFIRST_CHECK (a, b); return key_cmp_func (b, a, strcmp); }
 
 static inline int
 cmp_ctime (struct fileinfo const *a, struct fileinfo const *b,
@@ -3704,13 +3716,13 @@ cmp_version (struct fileinfo const *a, struct fileinfo const *b)
 }
 
 static int xstrcoll_version (V a, V b)
-{ return cmp_version (a, b); }
+{ DOTFIRST_CHECK (a, b); return cmp_version (a, b); }
 static int rev_xstrcoll_version (V a, V b)
-{ return cmp_version (b, a); }
+{ DOTFIRST_CHECK (a, b); return cmp_version (b, a); }
 static int xstrcoll_df_version (V a, V b)
-{ DIRFIRST_CHECK (a, b); return cmp_version (a, b); }
+{ DIRFIRST_CHECK (a, b); DOTFIRST_CHECK (a, b); return cmp_version (a, b); }
 static int rev_xstrcoll_df_version (V a, V b)
-{ DIRFIRST_CHECK (a, b); return cmp_version (b, a); }
+{ DIRFIRST_CHECK (a, b); DOTFIRST_CHECK (a, b); return cmp_version (b, a); }
 
 
 /* We have 2^3 different variants for each sort-key function
