@@ -1,5 +1,5 @@
 /* join - join lines of two files on a common field
-   Copyright (C) 1991-2018 Free Software Foundation, Inc.
+   Copyright (C) 1991-2019 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1193,7 +1193,7 @@ main (int argc, char **argv)
     die (EXIT_FAILURE, errno, "%s", quotef (g_names[1]));
 
   if (issued_disorder_warning[0] || issued_disorder_warning[1])
-    return EXIT_FAILURE;
+    die (EXIT_FAILURE, 0, _("input is not in sorted order"));
   else
     return EXIT_SUCCESS;
 }

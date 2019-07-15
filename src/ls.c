@@ -1,5 +1,5 @@
 /* 'dir', 'vdir' and 'ls' directory listing programs for GNU.
-   Copyright (C) 1985-2018 Free Software Foundation, Inc.
+   Copyright (C) 1985-2019 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -86,6 +86,7 @@
 
 #include "acl.h"
 #include "argmatch.h"
+#include "c-strcase.h"
 #include "dev-ino.h"
 #include "die.h"
 #include "error.h"
@@ -639,9 +640,9 @@ static struct color_ext_type *color_ext_list = NULL;
 static char *color_buf;
 
 /* True means to check for orphaned symbolic link, for displaying
-   colors.  */
+   colors, or to group symlink to directories with other dirs.  */
 
-static bool check_symlink_color;
+static bool check_symlink_mode;
 
 /* True means mention the inode number of each file.  -i  */
 
@@ -1130,8 +1131,10 @@ abmon_init (char abmon[12][ABFORMAT_SIZE])
           char const *abbr = nl_langinfo (ABMON_1 + i);
           if (strchr (abbr, '%'))
             return false;
+          mbs_align_t alignment = isdigit (to_uchar (*abbr))
+                                  ? MBS_ALIGN_RIGHT : MBS_ALIGN_LEFT;
           size_t req = mbsalign (abbr, abmon[i], ABFORMAT_SIZE,
-                                 &width, MBS_ALIGN_LEFT, 0);
+                                 &width, alignment, 0);
           if (! (req < ABFORMAT_SIZE))
             return false;
           required_mon_width = MAX (required_mon_width, width);
@@ -1476,13 +1479,15 @@ main (int argc, char **argv)
 
   /* Test print_with_color again, because the call to parse_ls_color
      may have just reset it -- e.g., if LS_COLORS is invalid.  */
-  if (print_with_color)
+  if (directories_first)
+    check_symlink_mode = true;
+  else if (print_with_color)
     {
       /* Avoid following symbolic links when possible.  */
       if (is_colored (C_ORPHAN)
           || (is_colored (C_EXEC) && color_symlink_as_referent)
           || (is_colored (C_MISSING) && format == long_format))
-        check_symlink_color = true;
+        check_symlink_mode = true;
     }
 
   if (dereference == DEREF_UNDEFINED)
@@ -3148,7 +3153,7 @@ gobble_file (char const *name, enum filetype type, ino_t inode,
       || ((print_inode || format_needs_type)
           && (type == symbolic_link || type == unknown)
           && (dereference == DEREF_ALWAYS
-              || color_symlink_as_referent || check_symlink_color))
+              || color_symlink_as_referent || check_symlink_mode))
       /* Command line dereferences are already taken care of by the above
          assertion that the inode number is not yet known.  */
       || (print_inode && inode == NOT_AN_INODE_NUMBER)
@@ -3299,7 +3304,7 @@ gobble_file (char const *name, enum filetype type, ino_t inode,
         }
 
       if (S_ISLNK (f->stat.st_mode)
-          && (format == long_format || check_symlink_color))
+          && (format == long_format || check_symlink_mode))
         {
           struct stat linkstats;
 
@@ -3314,21 +3319,11 @@ gobble_file (char const *name, enum filetype type, ino_t inode,
           /* Avoid following symbolic links when possible, ie, when
              they won't be traced and when no indicator is needed.  */
           if (linkname
-              && (file_type <= indicator_style || check_symlink_color)
+              && (file_type <= indicator_style || check_symlink_mode)
               && stat (linkname, &linkstats) == 0)
             {
               f->linkok = true;
-
-              /* Symbolic links to directories that are mentioned on the
-                 command line are automatically traced if not being
-                 listed as files.  */
-              if (!command_line_arg || format == long_format
-                  || !S_ISDIR (linkstats.st_mode))
-                {
-                  /* Get the linked-to file's mode for the filetype indicator
-                     in long listings.  */
-                  f->linkmode = linkstats.st_mode;
-                }
+              f->linkmode = linkstats.st_mode;
             }
           free (linkname);
         }
@@ -3440,6 +3435,14 @@ static bool
 is_directory (const struct fileinfo *f)
 {
   return f->filetype == directory || f->filetype == arg_directory;
+}
+
+/* Return true if F refers to a (symlinked) directory.  */
+static bool
+is_linked_directory (const struct fileinfo *f)
+{
+  return f->filetype == directory || f->filetype == arg_directory
+         || S_ISDIR (f->linkmode);
 }
 
 /* Put the name of the file that FILENAME is a symbolic link to
@@ -3587,8 +3590,8 @@ typedef int (*qsortFunc)(V a, V b);
 #define DIRFIRST_CHECK(a, b)						\
   do									\
     {									\
-      bool a_is_dir = is_directory ((struct fileinfo const *) a);	\
-      bool b_is_dir = is_directory ((struct fileinfo const *) b);	\
+      bool a_is_dir = is_linked_directory ((struct fileinfo const *) a);\
+      bool b_is_dir = is_linked_directory ((struct fileinfo const *) b);\
       if (a_is_dir && !b_is_dir)					\
         return -1;         /* a goes before b */			\
       if (!a_is_dir && b_is_dir)					\
@@ -4780,8 +4783,8 @@ get_color_indicator (const struct fileinfo *f, bool symlink_target)
       for (ext = color_ext_list; ext != NULL; ext = ext->next)
         {
           if (ext->ext.len <= len
-              && STREQ_LEN (name - ext->ext.len, ext->ext.string,
-                            ext->ext.len))
+              && c_strncasecmp (name - ext->ext.len, ext->ext.string,
+                                ext->ext.len) == 0)
             break;
         }
     }

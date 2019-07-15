@@ -1,6 +1,6 @@
 /* shred.c - overwrite files and devices to make it harder to recover data
 
-   Copyright (C) 1999-2018 Free Software Foundation, Inc.
+   Copyright (C) 1999-2019 Free Software Foundation, Inc.
    Copyright (C) 1997, 1998, 1999 Colin Plumb.
 
    This program is free software: you can redistribute it and/or modify
@@ -93,7 +93,7 @@
 #include "human.h"
 #include "randint.h"
 #include "randread.h"
-#include "renameat2.h"
+#include "renameatu.h"
 #include "stat-size.h"
 
 /* Default number of times to overwrite.  */
@@ -975,11 +975,13 @@ do_wipefd (int fd, char const *qname, struct randint_source *s,
         }
     }
 
-  /* Now deallocate the data.  The effect of ftruncate on
-     non-regular files is unspecified, so don't worry about any
-     errors reported for them.  */
+  /* Now deallocate the data.  The effect of ftruncate is specified
+     on regular files and shared memory objects (also directories, but
+     they are not possible here); don't worry about errors reported
+     for other file types.  */
+
   if (flags->remove_file && ftruncate (fd, 0) != 0
-      && S_ISREG (st.st_mode))
+      && (S_ISREG (st.st_mode) || S_TYPEISSHM (&st)))
     {
       error (0, errno, _("%s: error truncating"), qname);
       ok = false;
@@ -1096,7 +1098,7 @@ wipename (char *oldname, char const *qoldname, struct Options const *flags)
         memset (base, nameset[0], len);
         base[len] = 0;
         bool rename_ok;
-        while (! (rename_ok = (renameat2 (AT_FDCWD, oldname, AT_FDCWD, newname,
+        while (! (rename_ok = (renameatu (AT_FDCWD, oldname, AT_FDCWD, newname,
                                           RENAME_NOREPLACE)
                                == 0))
                && errno == EEXIST && incname (base, len))

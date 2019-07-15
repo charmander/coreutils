@@ -1,7 +1,7 @@
 #!/bin/sh
 # Demonstrate rm's new --one-file-system option.
 
-# Copyright (C) 2006-2018 Free Software Foundation, Inc.
+# Copyright (C) 2006-2019 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -38,11 +38,14 @@ mount --bind $t a/b \
 cat <<\EOF > exp || framework_failure_
 rm: skipping 'a/b', since it's on a different device
 EOF
-
-
-rm --one-file-system -rf a 2> out && fail=1
+returns_ 1 rm --one-file-system -rf a 2> out || fail=1
 test -d $t/y || fail=1
+compare exp out || fail=1
 
+cat <<\EOF >> exp || framework_failure_
+rm: and --preserve-root=all is in effect
+EOF
+returns_ 1 rm --preserve-root=all -rf a/b 2>out || fail=1
 compare exp out || fail=1
 
 Exit $fail

@@ -4,6 +4,186 @@ GNU coreutils NEWS                                    -*- outline -*-
 
 ** Bug fixes
 
+  cp now copies /dev/fd/N correctly on platforms like Solaris where
+  it is a character-special file whose minor device number is N.
+  [bug introduced in fileutils-4.1.6]
+
+  dd conv=fdatasync no longer reports a "Bad file descriptor" error
+  when fdatasync is interrupted, and dd now retries interrupted calls
+  to close, fdatasync, fstat and fsync instead of incorrectly
+  reporting an "Interrupted system call" error.
+  [bugs introduced in coreutils-6.0]
+
+  df now correctly parses the /proc/self/mountinfo file for unusual entries
+  like ones with '\r' in a field value ("mount -t tmpfs tmpfs /foo$'\r'bar"),
+  when the source field is empty ('mount -t tmpfs "" /mnt'), and when the
+  filesystem type contains characters like a blank which need escaping.
+  [bugs introduced in coreutils-8.24 with the introduction of reading
+   the /proc/self/mountinfo file]
+
+  factor again outputs immediately when stdout is a tty but stdin is not.
+  [bug introduced in coreutils-8.24]
+
+  ln works again on old systems without O_DIRECTORY support (like Solaris 10),
+  and on systems where symlink ("x", ".") fails with errno == EINVAL
+  (like Solaris 10 and Solaris 11).
+  [bug introduced in coreutils-8.31]
+
+  split no longer reports a "output file suffixes exhausted" error
+  when the specified number of files is evenly divisible by 10, 16, 26,
+  for --numeric, --hex, or default alphabetic suffixes respectively.
+  [bug introduced in coreutils-8.24]
+
+** New Features
+
+  od --skip-bytes now can use lseek even if the input is not a regular
+  file, greatly improving performance in some cases.
+
+  stat(1) now uses the statx() system call where available, which can
+  operate more efficiently by only retrieving requested attributes.
+  stat(1) also supports a new --cached= option to control cache
+  coherency of file system attributes, useful on network file systems.
+
+
+* Noteworthy changes in release 8.31 (2019-03-10) [stable]
+
+** Bug fixes
+
+  'base64 a b' now correctly diagnoses 'b' as the extra operand, not 'a'.
+  [bug introduced in coreutils-5.3.0]
+
+  When B already exists, 'cp -il A B' no longer immediately fails
+  after asking the user whether to proceed.
+  [This bug was present in "the beginning".]
+
+  df no longer corrupts displayed multibyte characters on macOS.
+  [bug introduced with coreutils-8.18]
+
+  seq no longer outputs inconsistent decimal point characters
+  for the last number, when locales are misconfigured.
+  [bug introduced in coreutils-7.0]
+
+  shred, sort, and split no longer falsely report ftruncate errors
+  when outputting to less-common file types.  For example, the shell
+  command 'sort /dev/null -o /dev/stdout | cat' no longer fails with
+  an "error truncating" diagnostic.
+  [bug was introduced with coreutils-8.18 for sort and split, and
+   (for shared memory objects only) with fileutils-4.1 for shred]
+
+  sync no longer fails for write-only file arguments.
+  [bug introduced with argument support to sync in coreutils-8.24]
+
+  'tail -f file | filter' no longer exits immediately on AIX.
+  [bug introduced in coreutils-8.28]
+
+  'tail -f file | filter' no longer goes into an infinite loop
+  if filter exits and SIGPIPE is ignored.
+  [bug introduced in coreutils-8.28]
+
+** Changes in behavior
+
+  cksum, dd, hostid, hostname, link, logname, sleep, tsort, unlink,
+  uptime, users, whoami, yes: now always process --help and --version options,
+  regardless of any other arguments present before any optional '--'
+  end-of-options marker.
+
+  nohup now processes --help and --version as first options even if other
+  parameters follow.
+
+  'yes a -- b' now outputs 'a b' instead of including the end-of-options
+  marker as before: 'a -- b'.
+
+  echo now always processes backslash escapes when the POSIXLY_CORRECT
+  environment variable is set.
+
+  When possible 'ln A B' now merely links A to B and reports an error
+  if this fails, instead of statting A and B before linking.  This
+  uses fewer system calls and avoids some races.  The old statting
+  approach is still used in situations where hard links to directories
+  are allowed (e.g., NetBSD when superuser).
+
+  ls --group-directories-first will also group symlinks to directories.
+
+  'test -a FILE' is not supported anymore.  Long ago, there were concerns about
+  the high probability of humans confusing the -a primary with the -a binary
+  operator, so POSIX changed this to 'test -e FILE'.  Scripts using it were
+  already broken and non-portable; the -a unary operator was never documented.
+
+  wc now treats non breaking space characters as word delimiters
+  unless the POSIXLY_CORRECT environment variable is set.
+
+** New features
+
+  id now supports specifying multiple users.
+
+  'date' now supports the '+' conversion specification flag,
+  introduced in POSIX.1-2017.
+
+  printf, seq, sleep, tail, and timeout now accept floating point
+  numbers in either the current or the C locale.  For example, if the
+  current locale's decimal point is ',', 'sleep 0,1' and 'sleep 0.1'
+  now mean the same thing.  Previously, these commands accepted only
+  C-locale syntax with '.' as the decimal point.  The new behavior is
+  more compatible with other implementations in non-C locales.
+
+  test now supports the '-N FILE' unary operator (like e.g. bash) to check
+  whether FILE exists and has been modified since it was last read.
+
+  env now supports '--default-signal[=SIG]', '--ignore-signal[=SIG]', and
+  '--block-signal[=SIG], to setup signal handling before executing a program.
+
+  env now supports '--list-signal-handling' to indicate non-default
+  signal handling before executing a program.
+
+** New commands
+
+  basenc is added to complement existing base64,base32 commands,
+  and encodes and decodes printable text using various common encodings:
+  base64,base64url,base32,base32hex,base16,base2,z85.
+
+** Improvements
+
+  ls -l now better aligns abbreviated months containing digits,
+  which is common in Asian locales.
+
+  stat and tail now know about the "sdcardfs" file system on Android.
+  stat -f -c%T now reports the file system type, and tail -f uses inotify.
+
+  stat now prints file creation time when supported by the file system,
+  on GNU Linux systems with glibc >= 2.28 and kernel >= 4.11.
+
+
+* Noteworthy changes in release 8.30 (2018-07-01) [stable]
+
+** Bug fixes
+
+  'cp --symlink SRC DST' will again correctly validate DST.
+  If DST is a regular file and SRC is a symlink to DST,
+  then cp will no longer allow that operation to clobber DST.
+  Also with -d, if DST is a symlink, then it can always be replaced,
+  even if it points to SRC on a separate device.
+  [bugs introduced with coreutils-8.27]
+
+  'cp -n -u' and 'mv -n -u' now consistently ignore the -u option.
+  Previously, this option combination suffered from race conditions
+  that caused -u to sometimes override -n.
+  [bug introduced with coreutils-7.1]
+
+  'cp -a --no-preserve=mode' now sets appropriate default permissions
+  for non regular files like fifos and character device nodes etc.,
+  and leaves mode bits of existing files unchanged.
+  Previously it would have set executable bits on created special files,
+  and set mode bits for existing files as if they had been created.
+  [bug introduced with coreutils-8.20]
+
+  'cp --remove-destination file symlink' now removes the symlink
+  even if it can't be traversed.
+  [bug introduced with --remove-destination in fileutils-4.1.1]
+
+  ls no longer truncates the abbreviated month names that have a
+  display width between 6 and 12 inclusive.  Previously this would have
+  output ambiguous months for Arabic or Catalan locales.
+
   'ls -aA' is now equivalent to 'ls -A', since -A now overrides -a.
   [bug introduced in coreutils-5.3.0]
 
@@ -14,19 +194,30 @@ GNU coreutils NEWS                                    -*- outline -*-
   now silently does nothing if A exists.
   [bug introduced with coreutils-7.1]
 
-  'cp -n -u' and 'mv -n -u' now consistently ignore the -u option.
-  Previously, this option combination suffered from race conditions
-  that caused -u to sometimes override -n.
-  [bug introduced with coreutils-7.1]
+** Changes in behavior
 
-  'cp -a --no-preserve=mode' now sets appropriate default permissions
-  for non regular files like fifos and character device nodes etc.
-  Previously it would have set executable bits on created special files.
-  [bug introduced with coreutils-8.20]
+  'cp --force file symlink' now removes the symlink even if
+  it is self referential.
 
-  ls no longer truncates the abbreviated month names that have a
-  display width between 6 and 12 inclusive.  Previously this would have
-  output ambiguous months for Arabic or Catalan locales.
+  ls --color now matches file extensions case insensitively.
+
+** New features
+
+  cp --reflink now supports --reflink=never to enforce a standard copy.
+
+  env supports a new -v/--debug option to show verbose information about
+  each processing step.
+
+  env supports a new -S/--split-string=S option to split a single argument
+  string into multiple arguments. Used to pass multiple arguments in scripts
+  (shebang lines).
+
+  md5sum accepts a new option: --zero (-z) to delimit the output lines with a
+  NUL instead of a newline character.  This also disables file name escaping.
+  This also applies to sha*sum and b2sum.
+
+  rm --preserve-root now supports the --preserve-root=all option to
+  reject any command line argument that is mounted to a separate file system.
 
 ** Improvements
 
@@ -36,6 +227,9 @@ GNU coreutils NEWS                                    -*- outline -*-
   stat and tail now know about the "exfs" file system, which is a
   version of XFS.  stat -f --format=%T now reports the file system type,
   and tail -f uses inotify.
+
+  wc avoids redundant processing of ASCII text in multibyte locales,
+  which is especially significant on macOS.
 
 
 * Noteworthy changes in release 8.29 (2017-12-27) [stable]
@@ -4893,7 +5087,7 @@ packages, see ./old/*/NEWS.
 
 ========================================================================
 
-Copyright (C) 2001-2018 Free Software Foundation, Inc.
+Copyright (C) 2001-2019 Free Software Foundation, Inc.
 
 Permission is granted to copy, distribute and/or modify this document
 under the terms of the GNU Free Documentation License, Version 1.3 or

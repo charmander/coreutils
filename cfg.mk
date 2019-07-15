@@ -1,5 +1,5 @@
 # Customize maint.mk                           -*- makefile -*-
-# Copyright (C) 2003-2018 Free Software Foundation, Inc.
+# Copyright (C) 2003-2019 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -48,7 +48,7 @@ export VERBOSE = yes
 # 4914152 9e
 export XZ_OPT = -8e
 
-old_NEWS_hash = 48668bce5e01bf434b1d1ff10d141884
+old_NEWS_hash = 2672dea4d532560bb2fb3a7792a2b2c5
 
 # Add an exemption for sc_makefile_at_at_check.
 _makefile_at_at_check_exceptions = ' && !/^cu_install_prog/ && !/dynamic-dep/'
@@ -248,6 +248,11 @@ sc_prohibit-quotearg:
 	@prohibit='quotearg(_n)?(|_colon|_char|_mem) ' \
 	in_vc_files='\.c$$' \
 	halt='Unstyled diagnostic quoting detected' \
+	  $(_sc_search_regexp)
+
+sc_prohibit-skip:
+	@prohibit='\|\| skip ' \
+	halt='Use skip_ not skip' \
 	  $(_sc_search_regexp)
 
 sc_sun_os_names:
@@ -787,11 +792,13 @@ sc_gitignore_missing:
 		'entries to .gitignore' >&2; exit 1; } || :
 
 # Flag redundant entries in .gitignore
-sc_gitignore_redundant:
-	@{ grep ^/lib $(srcdir)/.gitignore;				\
-	   sed 's|^|/lib|' $(srcdir)/lib/.gitignore; } |		\
-	    sort | uniq -d | grep . && { echo '$(ME): Remove above'	\
-	      'entries from .gitignore' >&2; exit 1; } || :
+# Disabled for now as too aggressive flagging
+# entries like /lib/arg-nonnull.h
+#sc_gitignore_redundant:
+#	@{ grep ^/lib $(srcdir)/.gitignore;				\
+#	   sed 's|^|/lib|' $(srcdir)/lib/.gitignore; } |		\
+#	    sort | uniq -d | grep . && { echo '$(ME): Remove above'	\
+#	      'entries from .gitignore' >&2; exit 1; } || :
 
 sc_prohibit-form-feed:
 	@prohibit=$$'\f' \
@@ -821,8 +828,9 @@ exclude_file_name_regexp--sc_system_h_headers = \
   ^src/((die|system|copy)\.h|make-prime-list\.c)$$
 
 _src = (false|lbracket|ls-(dir|ls|vdir)|tac-pipe|uname-(arch|uname))
+_gl_src = (xdecto.max|cl-strtold)
 exclude_file_name_regexp--sc_require_config_h_first = \
-  (^lib/buffer-lcm\.c|gl/lib/xdecto.max\.c|src/$(_src)\.c)$$
+  (^lib/buffer-lcm\.c|gl/lib/$(_gl_src)\.c|src/$(_src)\.c)$$
 exclude_file_name_regexp--sc_require_config_h = \
   $(exclude_file_name_regexp--sc_require_config_h_first)
 

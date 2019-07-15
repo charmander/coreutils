@@ -1,7 +1,7 @@
 #!/bin/sh
 # Verify that all options mentioned in usage are recognized by getopt.
 
-# Copyright (C) 2017-2018 Free Software Foundation, Inc.
+# Copyright (C) 2017-2019 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -36,7 +36,9 @@ checkprg () {
 
   # Append the pattern for a short unknown option.
   returns_ $rcexp $prg -/ >/dev/null 2> err || fail=1
-  grep -F "'/'" err || framework_failure_
+  grep " '*/'*" err || framework_failure_
+  # The following only handles the common case that has single quotes,
+  # as it simplifies to identify missing options only on common systems.
   sed -n "1s/'\/'/'OPT'/p" < err >> pat || framework_failure_
 
   # Get output for --help.

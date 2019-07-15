@@ -1,7 +1,7 @@
 #!/bin/sh
 # Ensure ls output is aligned when using abbreviated months from the locale
 
-# Copyright (C) 2009-2018 Free Software Foundation, Inc.
+# Copyright (C) 2009-2019 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,8 +19,9 @@
 . "${srcdir=.}/tests/init.sh"; path_prepend_ ./src
 print_ver_ ls
 
+mid_month="$(date +%Y-%m-15)" || framework_failure_
 for mon in $(seq -w 12); do
-    touch -d"+$mon month" $mon.ts || framework_failure_
+    touch -d"$mid_month +$mon month" $mon.ts || framework_failure_
 done
 
 

@@ -3,7 +3,7 @@
    Contributed to the GNU project by Torbjörn Granlund and Niels Möller
    Contains code from GNU MP.
 
-Copyright 2012-2018 Free Software Foundation, Inc.
+Copyright 2012-2019 Free Software Foundation, Inc.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -157,7 +157,7 @@ output_primes (const struct prime *primes, unsigned nprimes)
   printf ("#define FIRST_OMITTED_PRIME %u\n", p);
 }
 
-static void *
+static void * _GL_ATTRIBUTE_MALLOC
 xalloc (size_t s)
 {
   void *p = malloc (s);

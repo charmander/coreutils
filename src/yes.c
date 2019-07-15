@@ -1,5 +1,5 @@
 /* yes - output a string repeatedly until killed
-   Copyright (C) 1991-2018 Free Software Foundation, Inc.
+   Copyright (C) 1991-2019 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@
 #include <config.h>
 #include <stdio.h>
 #include <sys/types.h>
-#include <getopt.h>
 
 #include "system.h"
 
@@ -31,11 +30,6 @@
 #define PROGRAM_NAME "yes"
 
 #define AUTHORS proper_name ("David MacKenzie")
-
-static struct option const long_options[] =
-{
-  {NULL, 0, NULL, 0}
-};
 
 void
 usage (int status)
@@ -72,10 +66,9 @@ main (int argc, char **argv)
 
   atexit (close_stdout);
 
-  parse_long_options (argc, argv, PROGRAM_NAME, PACKAGE_NAME, Version,
-                      usage, AUTHORS, (char const *) NULL);
-  if (getopt_long (argc, argv, "+", long_options, NULL) != -1)
-    usage (EXIT_FAILURE);
+  parse_gnu_standard_options_only (argc, argv, PROGRAM_NAME, PACKAGE_NAME,
+                                   Version, true, usage, AUTHORS,
+                                   (char const *) NULL);
 
   char **operands = argv + optind;
   char **operand_lim = argv + argc;

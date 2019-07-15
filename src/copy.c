@@ -1,5 +1,5 @@
 /* copy.c -- core functions for copying files and directories
-   Copyright (C) 1989-2018 Free Software Foundation, Inc.
+   Copyright (C) 1989-2019 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -53,7 +53,7 @@
 #include "ignore-value.h"
 #include "ioblksize.h"
 #include "quote.h"
-#include "renameat2.h"
+#include "renameatu.h"
 #include "root-uid.h"
 #include "same.h"
 #include "savedir.h"
@@ -146,6 +146,42 @@ static bool owner_failure_ok (struct cp_options const *x);
    when we detect the user is trying to copy a directory into itself.  */
 static char const *top_level_src_name;
 static char const *top_level_dst_name;
+
+#ifndef DEV_FD_MIGHT_BE_CHR
+# define DEV_FD_MIGHT_BE_CHR false
+#endif
+
+/* Act like fstat (DIRFD, FILENAME, ST, FLAGS), except when following
+   symbolic links on Solaris-like systems, treat any character-special
+   device like /dev/fd/0 as if it were the file it is open on.  */
+static int
+follow_fstatat (int dirfd, char const *filename, struct stat *st, int flags)
+{
+  int result = fstatat (dirfd, filename, st, flags);
+
+  if (DEV_FD_MIGHT_BE_CHR && result == 0 && !(flags & AT_SYMLINK_NOFOLLOW)
+      && S_ISCHR (st->st_mode))
+    {
+      static dev_t stdin_rdev;
+      static signed char stdin_rdev_status;
+      if (stdin_rdev_status == 0)
+        {
+          struct stat stdin_st;
+          if (stat ("/dev/stdin", &stdin_st) == 0 && S_ISCHR (stdin_st.st_mode)
+              && minor (stdin_st.st_rdev) == STDIN_FILENO)
+            {
+              stdin_rdev = stdin_st.st_rdev;
+              stdin_rdev_status = 1;
+            }
+          else
+            stdin_rdev_status = -1;
+        }
+      if (0 < stdin_rdev_status && major (stdin_rdev) == major (st->st_rdev))
+        result = fstat (minor (st->st_rdev), st);
+    }
+
+  return result;
+}
 
 /* Set the timestamp of symlink, FILE, to TIMESPEC.
    If this system lacks support for that, simply return 0.  */
@@ -1010,7 +1046,7 @@ is_probably_sparse (struct stat const *sb)
    X provides many option settings.
    Return true if successful.
    *NEW_DST is as in copy_internal.
-   SRC_SB is the result of calling XSTAT (aka stat) on SRC_NAME.  */
+   SRC_SB is the result of calling follow_fstatat on SRC_NAME.  */
 
 static bool
 copy_reg (char const *src_name, char const *dst_name,
@@ -1379,7 +1415,7 @@ preserve_metadata:
       if (set_acl (dst_name, dest_desc, x->mode) != 0)
         return_val = false;
     }
-  else if (x->explicit_no_preserve_mode)
+  else if (x->explicit_no_preserve_mode && *new_dst)
     {
       if (set_acl (dst_name, dest_desc, MODE_RW_UGO & ~cached_umask ()) != 0)
         return_val = false;
@@ -1627,14 +1663,9 @@ same_file_ok (char const *src_name, struct stat const *src_sb,
         }
     }
 
-  /* It's ok to remove a destination symlink.  But that works only
-     when creating symbolic links, or when the source and destination
-     are on the same file system and when creating hard links or when
-     unlinking before opening the destination.  */
-  if (x->symbolic_link
-      || ((x->hard_link || x->unlink_dest_before_opening)
-          && S_ISLNK (dst_sb_link->st_mode)))
-    return dst_sb_link->st_dev == src_sb_link->st_dev;
+  /* It's ok to recreate a destination symlink. */
+  if (x->symbolic_link && S_ISLNK (dst_sb_link->st_mode))
+    return true;
 
   if (x->dereference == DEREF_NEVER)
     {
@@ -1651,10 +1682,13 @@ same_file_ok (char const *src_name, struct stat const *src_sb,
       if ( ! SAME_INODE (tmp_src_sb, tmp_dst_sb))
         return true;
 
-      /* FIXME: shouldn't this be testing whether we're making symlinks?  */
       if (x->hard_link)
         {
-          *return_now = true;
+          /* It's ok to attempt to hardlink the same file,
+            and return early if not replacing a symlink.
+            Note we need to return early to avoid a later
+            unlink() of DST (when SRC is a symlink).  */
+          *return_now = ! S_ISLNK (dst_sb_link->st_mode);
           return true;
         }
     }
@@ -1785,16 +1819,16 @@ static bool
 create_hard_link (char const *src_name, char const *dst_name,
                   bool replace, bool verbose, bool dereference)
 {
-  int status = force_linkat (AT_FDCWD, src_name, AT_FDCWD, dst_name,
-                             dereference ? AT_SYMLINK_FOLLOW : 0,
-                             replace);
-  if (status < 0)
+  int err = force_linkat (AT_FDCWD, src_name, AT_FDCWD, dst_name,
+                          dereference ? AT_SYMLINK_FOLLOW : 0,
+                          replace, -1);
+  if (0 < err)
     {
-      error (0, errno, _("cannot create hard link %s to %s"),
+      error (0, err, _("cannot create hard link %s to %s"),
              quoteaf_n (0, dst_name), quoteaf_n (1, src_name));
       return false;
     }
-  if (0 < status && verbose)
+  if (err < 0 && verbose)
     printf (_("removed %s\n"), quoteaf (dst_name));
   return true;
 }
@@ -1875,7 +1909,7 @@ copy_internal (char const *src_name, char const *dst_name,
   if (x->move_mode)
     {
       if (rename_errno < 0)
-        rename_errno = (renameat2 (AT_FDCWD, src_name, AT_FDCWD, dst_name,
+        rename_errno = (renameatu (AT_FDCWD, src_name, AT_FDCWD, dst_name,
                                    RENAME_NOREPLACE)
                         ? errno : 0);
       new_dst = rename_errno == 0;
@@ -1888,7 +1922,9 @@ copy_internal (char const *src_name, char const *dst_name,
       : rename_errno != EEXIST || x->interactive != I_ALWAYS_NO)
     {
       char const *name = rename_errno == 0 ? dst_name : src_name;
-      if (XSTAT (x, name, &src_sb) != 0)
+      int fstatat_flags
+        = x->dereference == DEREF_NEVER ? AT_SYMLINK_NOFOLLOW : 0;
+      if (follow_fstatat (AT_FDCWD, name, &src_sb, fstatat_flags) != 0)
         {
           error (0, errno, _("cannot stat %s"), quoteaf (name));
           return false;
@@ -1905,6 +1941,13 @@ copy_internal (char const *src_name, char const *dst_name,
           return false;
         }
     }
+#ifdef lint
+  else
+    {
+      assert (x->move_mode);
+      memset (&src_sb, 0, sizeof src_sb);
+    }
+#endif
 
   /* Detect the case in which the same source file appears more than
      once on the command line and no backup option has been selected.
@@ -1912,7 +1955,7 @@ copy_internal (char const *src_name, char const *dst_name,
      This check is enabled only if x->src_info is non-NULL.  */
   if (command_line_arg && x->src_info)
     {
-      if ( ! S_ISDIR (src_sb.st_mode)
+      if ( ! S_ISDIR (src_mode)
            && x->backup_type == no_backups
            && seen_file (x->src_info, src_name, &src_sb))
         {
@@ -1944,19 +1987,22 @@ copy_internal (char const *src_name, char const *dst_name,
                || x->backup_type != no_backups
                || x->unlink_dest_before_opening);
           int fstatat_flags = use_lstat ? AT_SYMLINK_NOFOLLOW : 0;
-          if (fstatat (AT_FDCWD, dst_name, &dst_sb, fstatat_flags) == 0)
+          if (follow_fstatat (AT_FDCWD, dst_name, &dst_sb, fstatat_flags) == 0)
             {
               have_dst_lstat = use_lstat;
               rename_errno = EEXIST;
             }
           else
             {
-              if (errno != ENOENT)
+              if (errno == ELOOP && x->unlink_dest_after_failed_open)
+                /* leave new_dst=false so we unlink later.  */;
+              else if (errno != ENOENT)
                 {
                   error (0, errno, _("cannot stat %s"), quoteaf (dst_name));
                   return false;
                 }
-              new_dst = true;
+              else
+                new_dst = true;
             }
         }
 
@@ -2143,7 +2189,8 @@ copy_internal (char const *src_name, char const *dst_name,
                   return false;
                 }
 
-              char *tmp_backup = backup_file_rename (dst_name, x->backup_type);
+              char *tmp_backup = backup_file_rename (AT_FDCWD, dst_name,
+                                                     x->backup_type);
 
               /* FIXME: use fts:
                  Using alloca for a file name that may be arbitrarily
@@ -2421,7 +2468,7 @@ copy_internal (char const *src_name, char const *dst_name,
       if (rename_errno != EXDEV)
         {
           /* There are many ways this can happen due to a race condition.
-             When something happens between the initial XSTAT and the
+             When something happens between the initial follow_fstatat and the
              subsequent rename, we can get many different types of errors.
              For example, if the destination is initially a non-directory
              or non-existent, but it is created as a directory, the rename
@@ -2622,11 +2669,12 @@ copy_internal (char const *src_name, char const *dst_name,
               goto un_backup;
             }
         }
-      if (force_symlinkat (src_name, AT_FDCWD, dst_name,
-                           x->unlink_dest_after_failed_open)
-          < 0)
+
+      int err = force_symlinkat (src_name, AT_FDCWD, dst_name,
+                                 x->unlink_dest_after_failed_open, -1);
+      if (0 < err)
         {
-          error (0, errno, _("cannot create symbolic link %s to %s"),
+          error (0, err, _("cannot create symbolic link %s to %s"),
                  quoteaf_n (0, dst_name), quoteaf_n (1, src_name));
           goto un_backup;
         }
@@ -2649,9 +2697,9 @@ copy_internal (char const *src_name, char const *dst_name,
            && !(! CAN_HARDLINK_SYMLINKS && S_ISLNK (src_mode)
                 && x->dereference == DEREF_NEVER))
     {
-      if (! create_hard_link (src_name, dst_name,
-                              x->unlink_dest_after_failed_open,
-                              false, dereference))
+      bool replace = (x->unlink_dest_after_failed_open
+                      || x->interactive == I_ASK_USER);
+      if (! create_hard_link (src_name, dst_name, replace, false, dereference))
         goto un_backup;
     }
   else if (S_ISREG (src_mode)
@@ -2705,10 +2753,9 @@ copy_internal (char const *src_name, char const *dst_name,
           goto un_backup;
         }
 
-      int symlink_r = force_symlinkat (src_link_val, AT_FDCWD, dst_name,
-                                       x->unlink_dest_after_failed_open);
-      int symlink_err = symlink_r < 0 ? errno : 0;
-      if (symlink_err && x->update && !new_dst && S_ISLNK (dst_sb.st_mode)
+      int symlink_err = force_symlinkat (src_link_val, AT_FDCWD, dst_name,
+                                         x->unlink_dest_after_failed_open, -1);
+      if (0 < symlink_err && x->update && !new_dst && S_ISLNK (dst_sb.st_mode)
           && dst_sb.st_size == strlen (src_link_val))
         {
           /* See if the destination is already the desired symlink.
@@ -2725,7 +2772,7 @@ copy_internal (char const *src_name, char const *dst_name,
             }
         }
       free (src_link_val);
-      if (symlink_err)
+      if (0 < symlink_err)
         {
           error (0, symlink_err, _("cannot create symbolic link %s"),
                  quoteaf (dst_name));
@@ -2861,7 +2908,7 @@ copy_internal (char const *src_name, char const *dst_name,
       if (set_acl (dst_name, -1, x->mode) != 0)
         return false;
     }
-  else if (x->explicit_no_preserve_mode)
+  else if (x->explicit_no_preserve_mode && new_dst)
     {
       int default_permissions = S_ISDIR (src_mode) || S_ISSOCK (src_mode)
                                 ? S_IRWXUGO : MODE_RW_UGO;

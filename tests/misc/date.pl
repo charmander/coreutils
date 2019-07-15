@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # Test "date".
 
-# Copyright (C) 2005-2018 Free Software Foundation, Inc.
+# Copyright (C) 2005-2019 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -297,6 +297,9 @@ my @Tests =
       {ENV => 'TZ=PST8'},
       {OUT => 'Wed Dec 31 21:00:00 PST 1969'},
      ],
+
+     # https://bugs.gnu.org/34608
+     ['date-century-plus', '-d @0 +.%+4C.', {OUT => '.+019.'}],
     );
 
 # Repeat the cross-dst test, using Jan 1, 2005 and every interval from 1..364.

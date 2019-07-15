@@ -1,5 +1,5 @@
 /* chown -- change user and group ownership of files
-   Copyright (C) 1989-2018 Free Software Foundation, Inc.
+   Copyright (C) 1989-2019 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -306,7 +306,7 @@ main (int argc, char **argv)
          empty string so that diagnostics say "ownership :GROUP"
          rather than "group GROUP".  */
       if (!chopt.user_name && chopt.group_name)
-        chopt.user_name = bad_cast ("");
+        chopt.user_name = xstrdup ("");
 
       optind++;
     }
@@ -325,7 +325,7 @@ main (int argc, char **argv)
                     uid, gid,
                     required_uid, required_gid, &chopt);
 
-  chopt_free (&chopt);
+  IF_LINT (chopt_free (&chopt));
 
   return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }

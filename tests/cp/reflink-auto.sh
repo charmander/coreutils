@@ -1,7 +1,7 @@
 #!/bin/sh
 # Test cp --reflink=auto
 
-# Copyright (C) 2009-2018 Free Software Foundation, Inc.
+# Copyright (C) 2009-2019 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -36,6 +36,10 @@ test -s b || fail=1
 # --reflink=auto should allow --sparse for fallback copies.
 # This command can be used to create minimal sized copies.
 cp --reflink=auto --sparse=always "$a_other" b || fail=1
+test -s b || fail=1
+
+# --reflink=auto should be overridden by --reflink=never
+cp --reflink=auto --reflink=never "$a_other" b || fail=1
 test -s b || fail=1
 
 Exit $fail

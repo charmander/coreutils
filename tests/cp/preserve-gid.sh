@@ -1,7 +1,7 @@
 #!/bin/sh
 # Verify that cp -p preserves GID when it is possible.
 
-# Copyright (C) 2007-2018 Free Software Foundation, Inc.
+# Copyright (C) 2007-2019 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 . "${srcdir=.}/tests/init.sh"; path_prepend_ ./src
 print_ver_ cp
 
+require_perl_
 require_root_
 
 # Some of the tests expect a umask that grants group and/or world read access.

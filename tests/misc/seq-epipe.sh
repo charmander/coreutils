@@ -1,7 +1,7 @@
 #!/bin/sh
 # Test for proper detection of EPIPE with ignored SIGPIPE
 
-# Copyright (C) 2016-2018 Free Software Foundation, Inc.
+# Copyright (C) 2016-2019 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,9 +18,7 @@
 
 . "${srcdir=.}/tests/init.sh"; path_prepend_ ./src
 print_ver_ seq
-
-(trap '' PIPE && yes | :) 2>&1 | grep -qF 'Broken pipe' ||
-    skip_ 'trapping SIGPIPE is not supported'
+trap_sigpipe_or_skip_
 
 # upon EPIPE with signals ignored, 'seq' should exit with an error.
 timeout 10 sh -c \

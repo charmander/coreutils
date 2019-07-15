@@ -1,7 +1,7 @@
 #!/bin/sh
-# verify that cp's --remove-destination option works with -R
+# verify cp's --remove-destination option
 
-# Copyright (C) 2000-2018 Free Software Foundation, Inc.
+# Copyright (C) 2000-2019 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -26,5 +26,10 @@ cp -R --remove-destination d e || fail=1
 
 # ...and again, with an existing destination.
 cp -R --remove-destination d e || fail=1
+
+# verify no ELOOP which was the case in <= 8.29
+ln -s loop loop || framework_failure_
+touch file || framework_failure_
+cp --remove-destination file loop || fail=1
 
 Exit $fail

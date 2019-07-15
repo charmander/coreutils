@@ -1,5 +1,5 @@
 /* GNU's who.
-   Copyright (C) 1992-2018 Free Software Foundation, Inc.
+   Copyright (C) 1992-2019 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -447,10 +447,11 @@ print_boottime (const STRUCT_UTMP *utmp_ent)
 static char *
 make_id_equals_comment (STRUCT_UTMP const *utmp_ent)
 {
-  char *comment = xmalloc (strlen (_("id=")) + sizeof UT_ID (utmp_ent) + 1);
+  size_t utmpsize = sizeof UT_ID (utmp_ent);
+  char *comment = xmalloc (strlen (_("id=")) + utmpsize + 1);
 
   strcpy (comment, _("id="));
-  strncat (comment, UT_ID (utmp_ent), sizeof UT_ID (utmp_ent));
+  strncat (comment, UT_ID (utmp_ent), utmpsize);
   return comment;
 }
 

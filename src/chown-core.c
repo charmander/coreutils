@@ -1,5 +1,5 @@
 /* chown-core.c -- core functions for changing ownership.
-   Copyright (C) 2000-2018 Free Software Foundation, Inc.
+   Copyright (C) 2000-2019 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -67,10 +67,10 @@ chopt_init (struct Chown_option *chopt)
 }
 
 extern void
-chopt_free (struct Chown_option *chopt _GL_UNUSED)
+chopt_free (struct Chown_option *chopt)
 {
-  /* Deliberately do not free chopt->user_name or ->group_name.
-     They're not always allocated.  */
+  free (chopt->user_name);
+  free (chopt->group_name);
 }
 
 /* Convert the numeric group-id, GID, to a string stored in xmalloc'd memory,

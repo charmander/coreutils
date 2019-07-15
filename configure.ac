@@ -1,7 +1,7 @@
 # -*- autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-# Copyright (C) 1991-2018 Free Software Foundation, Inc.
+# Copyright (C) 1991-2019 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -130,7 +130,6 @@ if test "$gl_gcc_warnings" = yes; then
   nw="$nw -Wredundant-decls"        # openat.h declares e.g., mkdirat
   nw="$nw -Wlogical-op"             # Too many warnings until GCC 4.8.0
   nw="$nw -Wformat-nonliteral"      # who.c and pinky.c strftime uses
-  nw="$nw -Wvla"                    # warnings in gettext.h
   nw="$nw -Wnested-externs"         # use of XARGMATCH/verify_function__
   nw="$nw -Wswitch-enum"            # Too many warnings for now
   nw="$nw -Wswitch-default"         # Too many warnings for now
@@ -318,6 +317,9 @@ if test $ac_cv_func_getattrat = yes; then
   AC_SUBST([LIB_NVPAIR])
 fi
 
+# glibc >= 2.28 and linux kernel >= 4.11
+AC_CHECK_FUNCS([statx])
+
 # SCO-ODT-3.0 is reported to need -los to link programs using initgroups
 AC_CHECK_FUNCS([initgroups])
 if test $ac_cv_func_initgroups = no; then
@@ -350,6 +352,15 @@ case $utils_cv_func_setpriority,$ac_cv_func_nice in
 *yes*)
   gl_ADD_PROG([optional_bin_progs], [nice])
 esac
+
+if test "$cross_compiling" = yes || test -c /dev/stdin <.; then
+  AC_DEFINE([DEV_FD_MIGHT_BE_CHR], [1],
+    [Define to 1 if /dev/std{in,out,err} and /dev/fd/N, if they exist, might be
+     character-special devices whose minor device number is the file
+     descriptor number, such as on Solaris.  Leave undefined if they are
+     definitely the actual files.  This determination should be done after any
+     symbolic links are followed.])
+fi
 
 AC_DEFUN([coreutils_DUMMY_1],
 [
@@ -474,6 +485,8 @@ fi
 # Build stdbuf only if supported
 ac_save_CFLAGS=$CFLAGS
 ac_save_LDFLAGS=$LDFLAGS
+cu_save_c_werror_flag=$ac_c_werror_flag
+AC_LANG_WERROR
 # Detect warnings about ignored "constructor" attributes.
 gl_WARN_ADD([-Werror], [CFLAGS])
 gl_WARN_ADD([-errwarn], [CFLAGS])
@@ -502,18 +515,7 @@ if test "$stdbuf_supported" = "yes" && test -z "$EXEEXT"; then
 fi
 CFLAGS=$ac_save_CFLAGS
 LDFLAGS=$ac_save_LDFLAGS
-
-# Detect when using xlc to determine whether to use -qinclude=
-AC_CACHE_CHECK([whether the system supports xlc include], [utils_cv_xlc],
-  [AC_COMPILE_IFELSE(
-     [AC_LANG_PROGRAM([[
-          #ifndef __xlc__
-            #error "not xlc"
-          #endif
-        ]])],
-     [utils_cv_xlc=yes],
-     [utils_cv_xlc=no])])
-AM_CONDITIONAL([USE_XLC_INCLUDE], [test "$utils_cv_xlc" = yes])
+ac_c_werror_flag=$cu_save_c_werror_flag
 
 ############################################################################
 
